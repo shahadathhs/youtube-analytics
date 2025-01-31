@@ -10,7 +10,7 @@ import {
 export const action: ActionFunction = async ({ request }) => {
   const formData = await request.formData();
   const url = formData.get("url") as string;
-  const days = 365;
+  const days = 90;
 
   function extractVideoId(url: string) {
     const regex = /(?:v=|\/)([0-9A-Za-z_-]{11})/;
@@ -38,22 +38,26 @@ export const action: ActionFunction = async ({ request }) => {
     dateFrom.setDate(dateFrom.getDate() - days);
     const publishedAfter = dateFrom.toISOString();
 
-    // 🟢 Fetch all video IDs with pagination
+    // 🟢 Fetch all video IDs and their publish dates
     const videosFromChannel = [];
     let nextPageToken = null;
 
     do {
       const res = await youtube.search.list({
-        part: ["id"],
+        part: ["id", "snippet"],
         channelId,
         publishedAfter,
         type: "video",
-        maxResults: 50, // Max allowed per request
+        maxResults: 50,
         pageToken: nextPageToken || undefined,
       });
 
       const newVideos =
-        res?.data?.items?.map((video) => video.id.videoId) || [];
+        res?.data?.items?.map((video) => ({
+          id: video.id.videoId,
+          publishedAt: video.snippet.publishedAt, // Get published date
+        })) || [];
+
       videosFromChannel.push(...newVideos);
       nextPageToken = res?.data?.nextPageToken;
     } while (nextPageToken);
@@ -66,36 +70,64 @@ export const action: ActionFunction = async ({ request }) => {
       const videoBatch = videosFromChannel.slice(i, i + 50);
       const resForStats = await youtube.videos.list({
         part: ["statistics"],
-        id: videoBatch,
+        id: videoBatch.map((v) => v.id),
       });
 
       const batchStats =
-        resForStats?.data?.items?.map((item) => ({
-          id: item.id,
-          views: item?.statistics?.viewCount || "0",
-          likes: item?.statistics?.likeCount || "0",
-          comments: item?.statistics?.commentCount || "0",
-        })) || [];
+        resForStats?.data?.items?.map((item) => {
+          const video = videosFromChannel.find((v) => v.id === item.id);
+          return {
+            id: item.id,
+            views: item?.statistics?.viewCount || "0",
+            likes: item?.statistics?.likeCount || "0",
+            comments: item?.statistics?.commentCount || "0",
+            publishedAt: video?.publishedAt || "",
+          };
+        }) || [];
 
       stats.push(...batchStats);
     }
 
     console.log("Total Stats Processed:", stats.length);
 
-    // 🟢 Calculate Metrics
-    const engagementRate = calculateEngagementRate(stats);
-    const likeToViewRatio = calculateLikeToViewRatio(stats);
-    const commentRate = calculateCommentRate(stats);
-    const estimateEarning = estimateEarnings(stats, 2.5);
+    // 🟢 Group by month
+    const monthlyData = stats.reduce((acc, video) => {
+      const date = new Date(video.publishedAt);
+      const monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
+
+      if (!acc[monthKey]) {
+        acc[monthKey] = { views: 0, likes: 0, comments: 0, count: 0 };
+      }
+
+      acc[monthKey].views += parseInt(video.views);
+      acc[monthKey].likes += parseInt(video.likes);
+      acc[monthKey].comments += parseInt(video.comments);
+      acc[monthKey].count++;
+
+      return acc;
+    }, {});
+
+    // 🟢 Calculate metrics for each month
+    const progressData = Object.entries(monthlyData).map(([month, data]) => ({
+      month,
+      engagementRate: calculateEngagementRate([
+        { views: data.views, likes: data.likes, comments: data.comments },
+      ]),
+      likeToViewRatio: calculateLikeToViewRatio([
+        { views: data.views, likes: data.likes },
+      ]),
+      commentRate: calculateCommentRate([
+        { views: data.views, comments: data.comments },
+      ]),
+      estimatedEarnings: estimateEarnings([{ views: data.views }], 2.5),
+    }));
+    console.log("Progress Data:", progressData);
 
     return json({
       channelId,
       totalVideos: videosFromChannel.length,
-      stats,
-      engagementRate,
-      likeToViewRatio,
-      commentRate,
-      estimateEarning,
+      data: stats, // Raw stats data
+      progressData, // Data formatted for graph
     });
   } catch (err) {
     console.error("Error Fetching Data:", err);

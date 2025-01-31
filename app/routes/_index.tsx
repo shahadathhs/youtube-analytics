@@ -1,8 +1,7 @@
 import { useFetcher } from "@remix-run/react";
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 
 export default function Index() {
-  // 🟢 Use the useFetcher hook to handle form submission
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fetcher = useFetcher<any>();
 
   if (fetcher.state === "submitting") {
@@ -15,7 +14,7 @@ export default function Index() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
-      <div className="bg-white shadow-lg rounded-xl p-6 w-full max-w-lg">
+      <div className="bg-white shadow-lg rounded-xl p-6 w-full max-w-2xl">
         <h1 className="text-2xl font-bold text-gray-800 mb-4 text-center">
           YouTube Channel Analytics
         </h1>
@@ -42,30 +41,21 @@ export default function Index() {
         {fetcher.data && (
           <div className="mt-6 p-4 bg-gray-50 rounded-lg shadow-inner">
             <h3 className="text-lg font-semibold text-gray-700 mb-3">
-              Metrics
+              Monthly Analytics Progress
             </h3>
-            <p className="text-gray-700">
-              Engagement Rate:{" "}
-              <span className="font-semibold">
-                {fetcher.data?.engagementRate}
-              </span>
-            </p>
-            <p className="text-gray-700">
-              Like-to-View Ratio:{" "}
-              <span className="font-semibold">
-                {fetcher.data?.likeToViewRatio}
-              </span>
-            </p>
-            <p className="text-gray-700">
-              Comment Rate:{" "}
-              <span className="font-semibold">{fetcher.data?.commentRate}</span>
-            </p>
-            <p className="text-gray-700">
-              Estimated Earnings:{" "}
-              <span className="font-semibold">
-                ${fetcher.data?.estimateEarning}
-              </span>
-            </p>
+
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={fetcher.data?.progressData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="engagementRate" stroke="#8884d8" name="Engagement Rate" />
+                <Line type="monotone" dataKey="likeToViewRatio" stroke="#82ca9d" name="Like/View Ratio" />
+                <Line type="monotone" dataKey="commentRate" stroke="#ffc658" name="Comment Rate" />
+                <Line type="monotone" dataKey="estimatedEarnings" stroke="#ff7300" name="Estimated Earnings" />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         )}
       </div>
