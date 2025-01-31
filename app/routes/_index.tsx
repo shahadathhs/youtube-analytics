@@ -43,6 +43,20 @@ export default function Index() {
     [selectedDataType]: Number(item[selectedDataType].toFixed(2)),
   }));
 
+  // * Calculate average or sum for each stat
+  const calculateStatsSummary = (key) => {
+    const values = chartData.map((item) => item[key]);
+    if (key === "estimatedEarnings") {
+      // Sum for earnings
+      return values.reduce((acc, value) => acc + value, 0).toFixed(2);
+    } else {
+      // Average for other stats
+      const average =
+        values.reduce((acc, value) => acc + value, 0) / values.length;
+      return average.toFixed(2);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
       <div className="bg-white shadow-lg rounded-xl p-6 w-full max-w-4xl">
@@ -163,10 +177,17 @@ export default function Index() {
                 <div key={type.key} className="bg-gray-50 p-4 rounded-lg">
                   <div className="text-sm text-gray-600">{type.label}</div>
                   <div className="text-xl font-semibold text-gray-900">
-                    {fetcher.data?.progressData?.[
-                      `last${selectedDuration}Days`
-                    ]?.[0]?.[type.key]?.toFixed(2) || "0.00"}
-                    {type.key === "estimatedEarnings" && "$"}
+                    {type.key === "estimatedEarnings" ? (
+                      <>
+                        {calculateStatsSummary(type.key)}$
+                        <span className="text-xs text-gray-500 ml-2">Total</span>
+                      </>
+                    ) : (
+                      <>
+                        {calculateStatsSummary(type.key)}
+                        <span className="text-xs text-gray-500 ml-2">Average</span>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
